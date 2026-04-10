@@ -2,12 +2,13 @@ import logging
 from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.db.session import get_db
 from backend.db import queries
-from backend.services import betfair_client
+from backend.services import betfair_client, odds_client
+from backend.services.odds_client import parse_bookmaker_lines
 from backend.services.cashout_signal import cashout_signal
 from backend.config import settings
 
@@ -27,6 +28,13 @@ class CreateBetRequest(BaseModel):
     bookmaker: str
     notes: Optional[str] = None
 
+    @field_validator("market_type")
+    @classmethod
+    def valid_market_type(cls, v: str) -> str:
+        if v not in ("h2h", "handicap", "totals"):
+            raise ValueError("market_type must be h2h, handicap, or totals")
+        return v
+
     @field_validator("odds_taken")
     @classmethod
     def odds_must_be_gt_one(cls, v: float) -> float:
@@ -41,12 +49,18 @@ class CreateBetRequest(BaseModel):
             raise ValueError("stake must be positive")
         return v
 
-    @field_validator("market_type")
-    @classmethod
-    def valid_market_type(cls, v: str) -> str:
-        if v not in ("h2h", "handicap", "totals"):
-            raise ValueError("market_type must be h2h, handicap, or totals")
-        return v
+    @model_validator(mode="after")
+    def validate_market_fields(self) -> "CreateBetRequest":
+        if self.market_type in ("handicap", "totals"):
+            if self.line is None:
+                raise ValueError("line is required for handicap and totals markets")
+            if not self.side:
+                raise ValueError("side is required for handicap and totals markets")
+        if self.market_type == "totals" and self.side not in ("over", "under"):
+            raise ValueError("side must be 'over' or 'under' for totals markets")
+        if self.market_type == "handicap" and self.side not in ("home", "away"):
+            raise ValueError("side must be 'home' or 'away' for handicap markets")
+        return self
 
 
 class ManualResultRequest(BaseModel):
@@ -129,6 +143,21 @@ async def create_bet(payload: CreateBetRequest, db: AsyncSession = Depends(get_d
                 "Failed to fetch Betfair LAY at bet creation for bet %d: %s", bet.id, exc
             )
 
+    # Snapshot current Odds API line — stored as line_at_open for line CLV
+    line_at_open: Optional[float] = payload.line
+    if payload.market_type in ("handicap", "totals") and payload.line is None:
+        try:
+            bookmakers = await odds_client.get_odds(payload.event_id, payload.sport_key)
+            snaps = parse_bookmaker_lines(bookmakers)
+            market_key = "handicap" if payload.market_type == "handicap" else "totals"
+            sel_lower = payload.selection.lower()
+            for s in snaps:
+                if s["market_type"] == market_key and s["selection"].lower() == sel_lower:
+                    line_at_open = s.get("line")
+                    break
+        except Exception as exc:
+            logger.warning("Failed to snapshot line_at_open for bet %d: %s", bet.id, exc)
+
     await queries.upsert_closing_line(
         db,
         bet.id,
@@ -137,7 +166,7 @@ async def create_bet(payload: CreateBetRequest, db: AsyncSession = Depends(get_d
             "betfair_lay_at_close": None,
             "odds_clv_pct": None,
             "beat_closing_odds": None,
-            "line_at_open": payload.line,
+            "line_at_open": line_at_open,
             "line_at_close": None,
             "line_clv_pts": None,
             "beat_closing_line": None,
@@ -157,17 +186,30 @@ async def get_bet(bet_id: int, db: AsyncSession = Depends(get_db)):
 
     result = _serialize_bet(bet)
 
-    if bet.status == "open" and bet.closing_line and bet.closing_line.betfair_lay_at_bet:
-        current_lay = await betfair_client.get_lay_price(bet.event_id, bet.selection)
-        if current_lay:
-            result["cashout_signal"] = cashout_signal(
-                odds_taken=bet.odds_taken,
-                betfair_lay_at_bet=bet.closing_line.betfair_lay_at_bet,
-                current_betfair_lay=current_lay,
-                threshold=settings.CASHOUT_EDGE_THRESHOLD,
-            )
+    if bet.status == "open":
+        if (
+            bet.closing_line
+            and bet.closing_line.betfair_lay_at_bet
+            and settings.BETFAIR_ENABLED
+        ):
+            current_lay = await betfair_client.get_lay_price(bet.event_id, bet.selection)
+            if current_lay:
+                result["cashout_signal"] = cashout_signal(
+                    odds_taken=bet.odds_taken,
+                    betfair_lay_at_bet=bet.closing_line.betfair_lay_at_bet,
+                    current_betfair_lay=current_lay,
+                    threshold=settings.CASHOUT_EDGE_THRESHOLD,
+                )
+            else:
+                result["cashout_signal"] = {
+                    "severity": "unavailable",
+                    "recommend_cashout": False,
+                }
         else:
-            result["cashout_signal"] = None
+            result["cashout_signal"] = {
+                "severity": "unavailable",
+                "recommend_cashout": False,
+            }
     else:
         result["cashout_signal"] = None
 
