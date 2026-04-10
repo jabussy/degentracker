@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p backend/db backend/services backend/routers)",
+      "Bash(mkdir -p frontend/src/pages frontend/src/components frontend/src/hooks frontend/src/lib)",
+      "Bash(*)",
+      "Write(*)",
+      "Edit(*)"
+    ]
+  }
+}
