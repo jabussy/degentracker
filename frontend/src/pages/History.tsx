@@ -60,10 +60,20 @@ function BetRow({ bet }: { bet: ApiBet }) {
           {bet.pnl != null ? <span className={bet.pnl >= 0 ? "text-green-400" : "text-red-400"}>{bet.pnl >= 0 ? "+" : ""}${bet.pnl.toFixed(2)}</span> : <span className="text-zinc-600">—</span>}
         </td>
         <td className="px-4 py-3 font-mono text-xs">
-          {cl?.odds_clv_pct != null ? <span className={cl.odds_clv_pct >= 0 ? "text-green-400" : "text-red-400"}>{cl.odds_clv_pct >= 0 ? "+" : ""}{(cl.odds_clv_pct * 100).toFixed(2)}%</span> : <span className="text-zinc-600">—</span>}
+          {!cl
+            ? <span className="text-zinc-600 text-xs">No CLV data</span>
+            : cl.odds_clv_pct != null
+              ? <span className={cl.odds_clv_pct >= 0 ? "text-green-400" : "text-red-400"}>{cl.odds_clv_pct >= 0 ? "+" : ""}{(cl.odds_clv_pct * 100).toFixed(2)}%</span>
+              : <span className="text-zinc-600">—</span>}
         </td>
         <td className="px-4 py-3 font-mono text-xs">
-          {cl?.line_clv_pts != null ? <span className={cl.line_clv_pts >= 0 ? "text-green-400" : "text-red-400"}>{cl.line_clv_pts >= 0 ? "+" : ""}{cl.line_clv_pts.toFixed(1)} pts</span> : <span className="text-zinc-600">—</span>}
+          {!cl
+            ? <span className="text-zinc-600 text-xs">No CLV data</span>
+            : bet.market_type === "h2h"
+              ? <span className="text-zinc-600">—</span>
+              : cl.line_clv_pts != null
+                ? <span className={cl.line_clv_pts >= 0 ? "text-green-400" : "text-red-400"}>{cl.line_clv_pts >= 0 ? "+" : ""}{cl.line_clv_pts.toFixed(1)} pts</span>
+                : <span className="text-zinc-600">—</span>}
         </td>
       </tr>
       {open && <tr className="border-b border-[#1e1e22]"><td colSpan={10} className="p-0"><ExpandedRow bet={bet} /></td></tr>}

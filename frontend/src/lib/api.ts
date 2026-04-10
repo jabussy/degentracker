@@ -32,19 +32,48 @@ export function fetchEvents(sport?: string, days = 3): Promise<ApiEvent[]> {
   return request(`/events?${q}`);
 }
 
-export interface OddsLine {
+// ---------------------------------------------------------------------------
+// Structured event lines (new format from /api/events/{id}/lines)
+// ---------------------------------------------------------------------------
+
+export interface EventLinesH2H {
   bookmaker: string;
-  market_type: string;
-  selection: string;
-  odds: number;
-  line: number | null;
-  snapshot_time: string;
+  bookmaker_key: string;
+  home_odds: number | null;
+  away_odds: number | null;
+  home_team: string;
+  away_team: string;
 }
 
-export function fetchEventLines(eventId: string) {
-  return request<{ event_id: string; event_name: string; lines: OddsLine[]; bookmakers: unknown[] }>(
-    `/events/${eventId}/lines`
-  );
+export interface EventLinesSpread {
+  bookmaker: string;
+  bookmaker_key: string;
+  home_line: number | null;
+  home_odds: number | null;
+  away_line: number | null;
+  away_odds: number | null;
+  home_team: string;
+  away_team: string;
+}
+
+export interface EventLinesTotals {
+  bookmaker: string;
+  bookmaker_key: string;
+  line: number | null;
+  over_odds: number | null;
+  under_odds: number | null;
+}
+
+export interface EventLines {
+  event_id: string;
+  h2h: EventLinesH2H[];
+  spreads: EventLinesSpread[];
+  totals: EventLinesTotals[];
+  betfair_lay: { home?: number; away?: number } | null;
+}
+
+export function fetchEventLines(eventId: string): Promise<EventLines> {
+  return request<EventLines>(`/events/${eventId}/lines`);
 }
 
 export function fetchEventBetfair(eventId: string) {
@@ -53,6 +82,10 @@ export function fetchEventBetfair(eventId: string) {
     runners: { selection_name: string; lay_price: number; size_available: number; snapshot_time: string }[];
   }>(`/events/${eventId}/betfair`);
 }
+
+// ---------------------------------------------------------------------------
+// Bets
+// ---------------------------------------------------------------------------
 
 export interface ClosingLine {
   betfair_lay_at_bet: number | null;
@@ -69,10 +102,10 @@ export interface ClosingLine {
 
 export interface CashoutSignal {
   recommend_cashout: boolean;
-  severity: "clear" | "watch" | "cashout";
-  original_edge_pct: number;
-  current_edge_pct: number;
-  current_betfair_lay: number;
+  severity: "clear" | "watch" | "cashout" | "unavailable";
+  original_edge_pct?: number;
+  current_edge_pct?: number;
+  current_betfair_lay?: number;
 }
 
 export interface ApiBet {
@@ -145,6 +178,10 @@ export function patchBetResult(id: number, outcome: "won" | "lost" | "void") {
 export function deleteBet(id: number) {
   return request(`/bets/${id}`, { method: "DELETE" });
 }
+
+// ---------------------------------------------------------------------------
+// Stats
+// ---------------------------------------------------------------------------
 
 export interface StatsSummary {
   total_staked: number;

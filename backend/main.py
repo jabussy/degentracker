@@ -16,7 +16,9 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Starting up — initialising DB")
+    from backend.config import settings as _settings
+    key_prefix = _settings.ODDS_API_KEY[:4] if _settings.ODDS_API_KEY else "<not set>"
+    logger.info("Starting up — initialising DB (ODDS_API_KEY prefix: %s...)", key_prefix)
     await init_db()
     start_scheduler()
     yield

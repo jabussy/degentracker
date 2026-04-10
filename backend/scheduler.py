@@ -19,16 +19,17 @@ async def poll_upcoming_odds():
     logger.info("poll_upcoming_odds: starting")
     async with AsyncSessionLocal() as db:
         open_bets = await queries.get_open_bets(db)
-        event_ids = list({b.event_id for b in open_bets})
-        for event_id in event_ids:
+        # Map event_id → sport_key (last-writer-wins if multiple bets per event)
+        event_sport: dict[str, str] = {b.event_id: b.sport_key for b in open_bets}
+        for event_id, sport_key in event_sport.items():
             try:
-                bookmakers = await odds_client.get_odds(event_id)
+                bookmakers = await odds_client.get_odds(event_id, sport_key)
                 snapshots = odds_client.parse_bookmaker_lines(bookmakers)
                 for snap in snapshots:
                     await queries.insert_odds_snapshot(db, {**snap, "event_id": event_id})
             except Exception as exc:
                 logger.error("poll_upcoming_odds: error for event %s: %s", event_id, exc)
-    logger.info("poll_upcoming_odds: done, %d events", len(event_ids))
+    logger.info("poll_upcoming_odds: done, %d events", len(event_sport))
 
 
 async def poll_betfair():

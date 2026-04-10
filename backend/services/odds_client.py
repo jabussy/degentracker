@@ -47,7 +47,11 @@ async def get_events(sport_key: str, days: int = 3) -> list[dict]:
         return []
 
 
-async def get_odds(event_id: str, markets: Optional[list[str]] = None) -> list[dict]:
+async def get_odds(
+    event_id: str,
+    sport_key: str = "upcoming",
+    markets: Optional[list[str]] = None,
+) -> list[dict]:
     """Fetch current bookmaker lines for a specific event."""
     if not settings.ODDS_API_KEY:
         logger.warning("ODDS_API_KEY not set — returning empty odds")
@@ -61,17 +65,33 @@ async def get_odds(event_id: str, markets: Optional[list[str]] = None) -> list[d
         "regions": "au",
         "markets": ",".join(markets),
         "oddsFormat": "decimal",
+        "eventIds": event_id,
+        "bookmakers": "tab,sportsbet,neds,pointsbet,betfair_ex_au",
     }
     try:
         async with httpx.AsyncClient(timeout=15) as client:
             resp = await client.get(
-                f"{ODDS_API_BASE}/sports/upcoming/events/{event_id}/odds", params=params
+                f"{ODDS_API_BASE}/sports/{sport_key}/odds", params=params
             )
+            if resp.status_code == 422:
+                # Try with "upcoming" pseudo-sport as fallback
+                if sport_key != "upcoming":
+                    logger.warning(
+                        "get_odds 422 for sport=%s event=%s, retrying with 'upcoming'",
+                        sport_key,
+                        event_id,
+                    )
+                    params_fallback = {**params}
+                    resp = await client.get(
+                        f"{ODDS_API_BASE}/sports/upcoming/odds", params=params_fallback
+                    )
+                else:
+                    return []
             if resp.status_code == 429:
                 logger.warning("Odds API quota exceeded (429) for event %s", event_id)
                 return []
             resp.raise_for_status()
-            return resp.json().get("bookmakers", [])
+            return resp.json()
     except Exception as exc:
         logger.error("Error fetching odds for event %s: %s", event_id, exc)
         return []
@@ -126,7 +146,7 @@ def parse_bookmaker_lines(bookmakers: list[dict]) -> list[dict]:
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     market_type_map = {"h2h": "h2h", "spreads": "handicap", "totals": "totals"}
     for bm in bookmakers:
-        bm_key = bm["key"]
+        bm_key = bm.get("key", "")
         for market in bm.get("markets", []):
             mtype = market_type_map.get(market["key"], market["key"])
             for outcome in market.get("outcomes", []):
