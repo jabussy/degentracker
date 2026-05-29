@@ -70,6 +70,7 @@ export interface EventLines {
   spreads: EventLinesSpread[];
   totals: EventLinesTotals[];
   betfair_lay: { home?: number; away?: number } | null;
+  betfair_fair_prob: { home?: number; away?: number } | null;
 }
 
 export function fetchEventLines(eventId: string): Promise<EventLines> {

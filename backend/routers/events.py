@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.db.session import get_db, AsyncSessionLocal
 from backend.db import queries
 from backend.services import odds_client, betfair_client
+from backend.services.clv import power_devig
 from backend.config import settings
 
 logger = logging.getLogger(__name__)
@@ -171,12 +172,19 @@ async def get_event_lines(event_id: str, db: AsyncSession = Depends(get_db)):
         if not betfair_lay:
             betfair_lay = None
 
+    # Power-devig the LAY pair (Clarke 2007) so EV uses a fair prob summing to 1.
+    betfair_fair_prob: dict | None = None
+    if betfair_lay and "home" in betfair_lay and "away" in betfair_lay:
+        home_fair, away_fair = power_devig([betfair_lay["home"], betfair_lay["away"]])
+        betfair_fair_prob = {"home": home_fair, "away": away_fair}
+
     return {
         "event_id": event_id,
         "h2h": h2h,
         "spreads": spreads,
         "totals": totals_data,
         "betfair_lay": betfair_lay,
+        "betfair_fair_prob": betfair_fair_prob,
     }
 
 

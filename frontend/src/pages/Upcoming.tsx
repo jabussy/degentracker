@@ -41,11 +41,13 @@ function fmtEV(ev: number | null): string {
 function H2HTable({
   rows,
   betfairLay,
+  betfairFairProb,
   event,
   onTrack,
 }: {
   rows: EventLinesH2H[];
   betfairLay: EventLines["betfair_lay"];
+  betfairFairProb: EventLines["betfair_fair_prob"];
   event: ApiEvent;
   onTrack: (opts: { bookmaker_key: string; bookmaker: string; selection: string; market_type: string; odds: number }) => void;
 }) {
@@ -54,8 +56,10 @@ function H2HTable({
   }
   const homeLayPrice = betfairLay?.home ?? null;
   const awayLayPrice = betfairLay?.away ?? null;
-  const homeFairProb = homeLayPrice ? 1 / homeLayPrice : null;
-  const awayFairProb = awayLayPrice ? 1 / awayLayPrice : null;
+  // Prefer the power-devigged fair prob (sums to 1 across the market); fall back
+  // to the raw 1/lay implied prob when only one side of the exchange is captured.
+  const homeFairProb = betfairFairProb?.home ?? (homeLayPrice ? 1 / homeLayPrice : null);
+  const awayFairProb = betfairFairProb?.away ?? (awayLayPrice ? 1 / awayLayPrice : null);
 
   return (
     <table className="w-full">
@@ -318,6 +322,7 @@ function EventRow({ event }: { event: ApiEvent }) {
                   <H2HTable
                     rows={linesData.h2h}
                     betfairLay={linesData.betfair_lay}
+                    betfairFairProb={linesData.betfair_fair_prob}
                     event={event}
                     onTrack={(opts) => navigateToAddBet(opts)}
                   />

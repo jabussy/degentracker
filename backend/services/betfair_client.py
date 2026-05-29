@@ -100,6 +100,36 @@ async def get_lay_price(event_id: str, selection_name: str) -> Optional[float]:
     return None
 
 
+async def get_market_lays(
+    event_id: str, selection_name: str
+) -> tuple[Optional[float], list[float]]:
+    """
+    Return (selection's LAY, [other runners' LAYs]) for an event's MATCH_ODDS market.
+
+    The other runners feed power-devigging so odds CLV references a fair line that
+    sums to 1 across the market. Returns (None, []) if the snapshot is unavailable.
+    """
+    if not settings.BETFAIR_ENABLED:
+        return None, []
+
+    snapshot = await get_market_snapshot(event_id)
+    if not snapshot:
+        return None, []
+
+    sel = selection_name.lower()
+    own: Optional[float] = None
+    others: list[float] = []
+    for runner in snapshot:
+        price = runner.get("lay_price")
+        if price is None:
+            continue
+        if runner["selection_name"].lower() == sel:
+            own = price
+        else:
+            others.append(price)
+    return own, others
+
+
 async def get_market_snapshot(event_id: str) -> Optional[list[dict]]:
     """Fetch all runners with LAY prices for an event."""
     if not settings.BETFAIR_ENABLED:
