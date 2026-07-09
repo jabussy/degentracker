@@ -85,6 +85,58 @@ export function fetchEventBetfair(eventId: string) {
 }
 
 // ---------------------------------------------------------------------------
+// EV Finder
+// ---------------------------------------------------------------------------
+
+export interface EVOpportunity {
+  event_id: string;
+  event_name: string;
+  sport_key: string;
+  sport_title: string;
+  commence_time: string;
+  market_type: "h2h" | "handicap" | "totals";
+  selection: string;
+  side: string | null;
+  line: number | null;
+  bookmaker: string;
+  bookmaker_title: string;
+  odds: number;
+  fair_prob: number | null;
+  fair_odds: number | null;
+  ev_pct: number | null;
+  kelly_pct: number | null;
+  reference: "betfair_lay" | null;
+}
+
+export interface EVResponse {
+  generated_at: string;
+  count: number;
+  opportunities: EVOpportunity[];
+}
+
+export function fetchEVOpportunities(sport?: string, days = 3): Promise<EVResponse> {
+  const q = new URLSearchParams();
+  if (sport) q.set("sport", sport);
+  q.set("days", String(days));
+  return request(`/ev?${q}`);
+}
+
+export interface Bet365ScanResult {
+  scraped_at: string;
+  fixtures: Record<string, number>;
+  snapshots: number;
+  unmatched: string[];
+}
+
+export function scrapeBet365(): Promise<Bet365ScanResult> {
+  return request("/ev/bet365", { method: "POST" });
+}
+
+export function scrapeBetfair(): Promise<Bet365ScanResult> {
+  return request("/ev/betfair", { method: "POST" });
+}
+
+// ---------------------------------------------------------------------------
 // Bets
 // ---------------------------------------------------------------------------
 

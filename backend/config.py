@@ -18,6 +18,12 @@ class Settings(BaseSettings):
     CLOSING_LINE_WINDOW_MINUTES: int = 5
     CASHOUT_EDGE_THRESHOLD: float = 0.03
     BETFAIR_ENABLED: bool = True
+    # bet365 has no API coverage — odds come from a Playwright scraper.
+    # Headed by default: bet365 blocks obvious headless browsers.
+    BET365_SCRAPE_ENABLED: bool = True
+    BET365_HEADLESS: bool = False
+    # How long scraped prices (bet365, Betfair coupon) stay usable in EV scans
+    SCRAPED_SNAPSHOT_MAX_AGE_MINUTES: int = 20
 
     class Config:
         env_file = ".env"

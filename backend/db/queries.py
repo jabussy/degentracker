@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 from sqlalchemy import select, update, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,9 +22,17 @@ async def get_events(
     sport_key: Optional[str] = None,
     days: int = 3,
 ) -> list[Event]:
-    stmt = select(Event).where(Event.status != "deleted")
+    # commence_time is stored as naive UTC (see odds_client.get_events)
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    cutoff = now + timedelta(days=days)
+    stmt = select(Event).where(
+        Event.status != "deleted",
+        Event.commence_time >= now,
+        Event.commence_time <= cutoff,
+    )
     if sport_key:
         stmt = stmt.where(Event.sport_key == sport_key)
+    stmt = stmt.order_by(Event.commence_time)
     result = await db.execute(stmt)
     return result.scalars().all()
 
@@ -184,6 +192,51 @@ async def insert_odds_snapshot(db: AsyncSession, data: dict) -> OddsSnapshot:
     return snap
 
 
+async def insert_odds_snapshots_bulk(db: AsyncSession, rows: list[dict]) -> None:
+    """Insert many odds snapshots in a single commit (EV scans write hundreds)."""
+    if not rows:
+        return
+    db.add_all([OddsSnapshot(**row) for row in rows])
+    await db.commit()
+
+
+async def get_fresh_odds_snapshots(
+    db: AsyncSession,
+    event_id: str,
+    bookmaker: str,
+    since: datetime,
+) -> list[OddsSnapshot]:
+    """Latest snapshot per (market, selection, line) for one bookmaker, no older than `since`."""
+    subq = (
+        select(
+            OddsSnapshot.market_type,
+            OddsSnapshot.selection,
+            func.max(OddsSnapshot.snapshot_time).label("max_time"),
+        )
+        .where(
+            and_(
+                OddsSnapshot.event_id == event_id,
+                OddsSnapshot.bookmaker == bookmaker,
+                OddsSnapshot.snapshot_time >= since,
+            )
+        )
+        .group_by(OddsSnapshot.market_type, OddsSnapshot.selection)
+        .subquery()
+    )
+    stmt = select(OddsSnapshot).join(
+        subq,
+        and_(
+            OddsSnapshot.market_type == subq.c.market_type,
+            OddsSnapshot.selection == subq.c.selection,
+            OddsSnapshot.snapshot_time == subq.c.max_time,
+            OddsSnapshot.event_id == event_id,
+            OddsSnapshot.bookmaker == bookmaker,
+        ),
+    )
+    result = await db.execute(stmt)
+    return result.scalars().all()
+
+
 async def get_odds_snapshot_at(
     db: AsyncSession,
     event_id: str,
@@ -246,6 +299,14 @@ async def insert_betfair_snapshot(db: AsyncSession, data: dict) -> BetfairSnapsh
     await db.commit()
     await db.refresh(snap)
     return snap
+
+
+async def insert_betfair_snapshots_bulk(db: AsyncSession, rows: list[dict]) -> None:
+    """Insert many Betfair snapshots in a single commit (scraper writes dozens)."""
+    if not rows:
+        return
+    db.add_all([BetfairSnapshot(**row) for row in rows])
+    await db.commit()
 
 
 async def get_latest_betfair_snapshot(

@@ -9,6 +9,31 @@ logger = logging.getLogger(__name__)
 
 ODDS_API_BASE = "https://api.the-odds-api.com/v4"
 
+# Tracker bookmaker names -> The Odds API bookmaker keys (AU region).
+# Names not in this map are already valid Odds API keys.
+# bet365 is NOT carried by The Odds API (verified 2026-07) — its odds come
+# from the Playwright scraper (services/bet365_scraper.py) instead.
+ODDS_API_BOOKMAKER_KEYS = {
+    "betfair": "betfair_ex_au",
+    "pointsbet": "pointsbetau",
+}
+SCRAPED_BOOKMAKERS = {"bet365"}
+TRACKER_KEY_BY_API_KEY = {v: k for k, v in ODDS_API_BOOKMAKER_KEYS.items()}
+
+
+def api_bookmaker_keys() -> str:
+    """Comma-joined Odds API bookmaker keys for all tracked bookmakers."""
+    return ",".join(
+        ODDS_API_BOOKMAKER_KEYS.get(b, b)
+        for b in settings.TRACKED_BOOKMAKERS
+        if b not in SCRAPED_BOOKMAKERS
+    )
+
+
+def tracker_bookmaker_key(api_key: str) -> str:
+    """Map an Odds API bookmaker key back to the tracker's bookmaker name."""
+    return TRACKER_KEY_BY_API_KEY.get(api_key, api_key)
+
 
 async def get_events(sport_key: str, days: int = 3) -> list[dict]:
     """Fetch upcoming events from The Odds API."""
@@ -66,7 +91,7 @@ async def get_odds(
         "markets": ",".join(markets),
         "oddsFormat": "decimal",
         "eventIds": event_id,
-        "bookmakers": "tab,sportsbet,neds,pointsbet,betfair_ex_au",
+        "bookmakers": api_bookmaker_keys(),
     }
     try:
         async with httpx.AsyncClient(timeout=15) as client:
@@ -94,6 +119,46 @@ async def get_odds(
             return resp.json()
     except Exception as exc:
         logger.error("Error fetching odds for event %s: %s", event_id, exc)
+        return []
+
+
+async def get_sport_odds(
+    sport_key: str,
+    markets: Optional[list[str]] = None,
+) -> list[dict]:
+    """
+    Fetch odds for ALL upcoming events of a sport in a single request.
+
+    Far cheaper on quota than per-event calls: one request covers every event.
+    Includes ``h2h_lay`` so Betfair Exchange LAY prices arrive in the same
+    response — the fair-price reference for EV scanning.
+    """
+    if not settings.ODDS_API_KEY:
+        logger.warning("ODDS_API_KEY not set — returning empty sport odds")
+        return []
+
+    if markets is None:
+        markets = ["h2h", "spreads", "totals", "h2h_lay"]
+
+    params = {
+        "apiKey": settings.ODDS_API_KEY,
+        "regions": "au",
+        "markets": ",".join(markets),
+        "oddsFormat": "decimal",
+        "bookmakers": api_bookmaker_keys(),
+    }
+    try:
+        async with httpx.AsyncClient(timeout=20) as client:
+            resp = await client.get(
+                f"{ODDS_API_BASE}/sports/{sport_key}/odds", params=params
+            )
+            if resp.status_code == 429:
+                logger.warning("Odds API quota exceeded (429) for odds/%s", sport_key)
+                return []
+            resp.raise_for_status()
+            return resp.json()
+    except Exception as exc:
+        logger.error("Error fetching sport odds for %s: %s", sport_key, exc)
         return []
 
 
@@ -148,7 +213,10 @@ def parse_bookmaker_lines(bookmakers: list[dict]) -> list[dict]:
     for bm in bookmakers:
         bm_key = bm.get("key", "")
         for market in bm.get("markets", []):
-            mtype = market_type_map.get(market["key"], market["key"])
+            mtype = market_type_map.get(market["key"])
+            if mtype is None:
+                # e.g. h2h_lay — exchange lay prices are not bookmaker lines
+                continue
             for outcome in market.get("outcomes", []):
                 snapshots.append(
                     {

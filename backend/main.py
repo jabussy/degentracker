@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.db.session import init_db
-from backend.routers import events, bets, stats
+from backend.routers import events, bets, stats, ev
 from backend.scheduler import start_scheduler
 
 logging.basicConfig(
@@ -38,6 +38,7 @@ app.add_middleware(
 app.include_router(events.router)
 app.include_router(bets.router)
 app.include_router(stats.router)
+app.include_router(ev.router)
 
 
 @app.get("/health")
