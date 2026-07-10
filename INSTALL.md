@@ -6,14 +6,13 @@ Bet Tracker is a full-stack app: a **FastAPI (Python)** backend and a **React + 
 
 ## 1. Prerequisites
 
-| Tool | Required version | Your machine | Notes |
-|---|---|---|---|
-| **Python** | 3.11+ | ✅ 3.13 installed | Runs the backend |
-| **Node.js** | 18+ (20 LTS recommended) | ❌ not installed | Runs the frontend — **install this** |
-| **git** | any | ✅ installed | |
-| uv | optional | not installed | Faster Python installs; pip works fine instead |
-| pnpm | optional | not installed | npm works fine instead |
-
+| Tool | Required version | Notes |
+|---|---|---|
+| **Python** | 3.11+ | Runs the backend |
+| **Node.js** | 18+ (20 LTS recommended) | Runs the frontend — install this |
+| **git** | any | |
+| uv | optional | Faster Python installs; pip works fine instead |
+| pnpm | optional | npm works fine instead
 ### Install Node.js (Windows)
 
 Pick one:
