@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchBets, fetchStatsSummary, type ApiBet } from "../lib/api";
 
-const BOOKMAKERS = ["", "tab", "sportsbet", "neds", "pointsbet", "betfair"];
 const MARKETS = ["", "h2h", "handicap", "totals"];
 const OUTCOMES = ["", "won", "lost", "void"];
 

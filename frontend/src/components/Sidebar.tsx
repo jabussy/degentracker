@@ -5,6 +5,7 @@ import { fetchBets } from "../lib/api";
 const NAV = [
   { to: "/", label: "Dashboard", icon: "◈" },
   { to: "/bets/open", label: "Open Bets", icon: "◉", badge: true },
+  { to: "/ev", label: "Find EV", icon: "Σ" },
   { to: "/upcoming", label: "Upcoming", icon: "◷" },
   { to: "/bets/add", label: "Add Bet", icon: "+" },
   { to: "/history", label: "History", icon: "▤" },

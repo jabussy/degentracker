@@ -4,6 +4,7 @@ import Dashboard from "./pages/Dashboard";
 import OpenBets from "./pages/OpenBets";
 import AddBet from "./pages/AddBet";
 import Upcoming from "./pages/Upcoming";
+import FindEV from "./pages/FindEV";
 import History from "./pages/History";
 
 export default function App() {
@@ -16,6 +17,7 @@ export default function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/bets/open" element={<OpenBets />} />
             <Route path="/bets/add" element={<AddBet />} />
+            <Route path="/ev" element={<FindEV />} />
             <Route path="/upcoming" element={<Upcoming />} />
             <Route path="/history" element={<History />} />
             <Route path="*" element={<Navigate to="/" replace />} />

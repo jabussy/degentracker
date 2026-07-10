@@ -68,7 +68,9 @@ async def capture_closing_lines():
 
             logger.info("capture_closing_lines: capturing for bet %d", bet.id)
             try:
-                betfair_lay_close = await betfair_client.get_lay_price(bet.event_id, bet.selection)
+                betfair_lay_close, other_lays = await betfair_client.get_market_lays(
+                    bet.event_id, bet.selection
+                )
 
                 line_at_close = None
                 if bet.market_type in ("handicap", "totals"):
@@ -85,7 +87,9 @@ async def capture_closing_lines():
                 odds_clv_pct = None
                 beat_closing_odds = None
                 if betfair_lay_close:
-                    odds_clv_pct = calc_odds_clv(bet.odds_taken, betfair_lay_close)
+                    odds_clv_pct = calc_odds_clv(
+                        bet.odds_taken, betfair_lay_close, other_lays or None
+                    )
                     beat_closing_odds = odds_clv_pct > 0
 
                 line_clv_pts = None
@@ -173,11 +177,15 @@ async def recover_missed_closes():
         for bet in missed:
             cl = bet.closing_line
             try:
-                betfair_lay_close = await betfair_client.get_lay_price(bet.event_id, bet.selection)
+                betfair_lay_close, other_lays = await betfair_client.get_market_lays(
+                    bet.event_id, bet.selection
+                )
                 odds_clv_pct = None
                 beat_closing_odds = None
                 if betfair_lay_close:
-                    odds_clv_pct = calc_odds_clv(bet.odds_taken, betfair_lay_close)
+                    odds_clv_pct = calc_odds_clv(
+                        bet.odds_taken, betfair_lay_close, other_lays or None
+                    )
                     beat_closing_odds = odds_clv_pct > 0
 
                 await queries.upsert_closing_line(

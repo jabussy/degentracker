@@ -303,6 +303,16 @@ DELETE /api/bets/{id}                     # soft delete
 
 GET    /api/stats/summary                 # PnL, ROI%, odds CLV win rate, line CLV win rate
 GET    /api/stats/breakdown               # by sport | bookmaker | market_type
+
+GET    /api/ev                            # EV scan; ?sport=&days=3&min_ev=
+                                          # one bulk Odds API call per sport (incl. h2h_lay),
+                                          # fair line = Betfair LAY ONLY, power-devigged
+                                          # (back validates the lay, never substitutes for it)
+POST   /api/ev/bet365                     # scrape bet365 AU (Playwright) → odds_snapshots;
+                                          # bet365 is NOT on The Odds API — scraper only
+POST   /api/ev/betfair                    # scrape Betfair Exchange coupons (Playwright) →
+                                          # betfair_snapshots (true best back/lay + sizes);
+                                          # preferred over Odds API betfair relay in EV scans
 ```
 
 ---
