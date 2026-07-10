@@ -21,7 +21,7 @@ def power_devig(odds: list[float], tol: float = 1e-10, max_iter: int = 200) -> l
     running from n down to 0, so a unique root for s(e) == 1 always exists.
     """
     if len(odds) < 2:
-        return [1.0 / o for o in odds]
+        return [1.0] if odds else []
 
     implied = [1.0 / o for o in odds]
     if abs(sum(implied) - 1.0) < tol:
