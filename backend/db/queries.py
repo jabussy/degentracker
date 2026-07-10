@@ -211,6 +211,7 @@ async def get_fresh_odds_snapshots(
         select(
             OddsSnapshot.market_type,
             OddsSnapshot.selection,
+            OddsSnapshot.line,
             func.max(OddsSnapshot.snapshot_time).label("max_time"),
         )
         .where(
@@ -220,7 +221,7 @@ async def get_fresh_odds_snapshots(
                 OddsSnapshot.snapshot_time >= since,
             )
         )
-        .group_by(OddsSnapshot.market_type, OddsSnapshot.selection)
+        .group_by(OddsSnapshot.market_type, OddsSnapshot.selection, OddsSnapshot.line)
         .subquery()
     )
     stmt = select(OddsSnapshot).join(
@@ -228,10 +229,10 @@ async def get_fresh_odds_snapshots(
         and_(
             OddsSnapshot.market_type == subq.c.market_type,
             OddsSnapshot.selection == subq.c.selection,
+            func.coalesce(OddsSnapshot.line, -999999.0) == func.coalesce(subq.c.line, -999999.0),
             OddsSnapshot.snapshot_time == subq.c.max_time,
             OddsSnapshot.event_id == event_id,
             OddsSnapshot.bookmaker == bookmaker,
-        ),
     )
     result = await db.execute(stmt)
     return result.scalars().all()
